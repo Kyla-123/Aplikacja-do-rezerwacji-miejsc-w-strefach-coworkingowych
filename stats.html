@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Statystyki Rezerwacji</title>
+  <style>
+    /* Motyw spójny z resztą aplikacji */
+    :root {
+      --bg: #020617;
+      --bg-soft: #0f172a;
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border-subtle: #1f2937;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.25) 0, transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(34, 197, 94, 0.25) 0, transparent 45%),
+        var(--bg);
+      color: var(--text-main);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .page-shell {
+      width: 100%;
+      max-width: 980px;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+                  radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.10), transparent 55%),
+                  linear-gradient(135deg, #020617, #020617);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+      padding: 24px 28px 36px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    h1 { margin: 0 0 8px; font-size: 1.6rem; }
+    .sub { margin: 0 0 18px; color: var(--text-muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 650;
+    }
+
+    .value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .chart-card {
+      grid-column: 1 / -1;
+    }
+
+    canvas {
+      width: 100%;
+      height: 280px;
+      display: block;
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(31, 41, 55, 0.85);
+    }
+
+    .note {
+      margin-top: 10px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <h1>Statystyki rezerwacji</h1>
+    <p class="sub"><a href="index.html">← Powrót do panelu głównego</a></p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Łączna liczba rezerwacji</h3>
+        <p class="value" id="totalReservations">Ładowanie…</p>
+      </div>
+
+      <div class="card">
+        <h3>Najbardziej oblegane stanowisko</h3>
+        <p class="value" id="topStation">Ładowanie…</p>
+      </div>
+
+      <div class="card chart-card">
+        <h3>Rezerwacje według dni tygodnia</h3>
+        <canvas id="dailyCanvas"></canvas>
+        <div class="note" id="dailyNote"></div>
+      </div>
+
+      <div class="card chart-card">
+        <h3>Rezerwacje według godzin</h3>
+        <canvas id="hourCanvas"></canvas>
+        <div class="note" id="hourNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:5000';
+    const DESKS_PER_FLOOR = 20;
+
+    function deskCodeFromId(id) {
+      const floor = (id <= DESKS_PER_FLOOR) ? 1 : 2;
+      const local = ((id - 1) % DESKS_PER_FLOOR) + 1;
+      return `P${floor}-${String(local).padStart(2, '0')}`;
+    }
+
+    async function ensureAuth() {
+      try {
+        const res = await fetch(API_BASE + '/api/me', { credentials: 'include' });
+        if (!res.ok) window.location.href = 'index.html';
+      } catch (e) {
+        window.location.href = 'index.html';
+      }
+    }
+
+    function setupHiDPICanvas(canvas) {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(300, rect.width);
+      const height = Math.max(240, rect.height);
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return { ctx, width, height };
+    }
+
+    function drawBarChart(canvas, labels, values, opts = {}) {
+      const { ctx, width, height } = setupHiDPICanvas(canvas);
+
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#38bdf8';
+      const muted = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#9ca3af';
+      const border = getComputedStyle(document.documentElement).getPropertyValue('--border-subtle').trim() || '#1f2937';
+      const text = getComputedStyle(document.documentElement).getPropertyValue('--text-main').trim() || '#e5e7eb';
+
+      ctx.clearRect(0, 0, width, height);
+
+      const padL = 44, padR = 14, padT = 18, padB = 36;
+      const plotW = width - padL - padR;
+      const plotH = height - padT - padB;
+
+      const maxVal = Math.max(1, ...values);
+      const step = (plotW / Math.max(1, labels.length));
+      const barW = Math.max(10, step * 0.62);
+
+      // osie
+      ctx.strokeStyle = border;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + plotH);
+      ctx.lineTo(padL + plotW, padT + plotH);
+      ctx.stroke();
+
+      // podpisy osi Y (0, max)
+      ctx.fillStyle = muted;
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('0', padL - 6, padT + plotH);
+      ctx.fillText(String(maxVal), padL - 6, padT);
+
+      // słupki
+      labels.forEach((lab, i) => {
+        const v = values[i] || 0;
+        const h = (v / maxVal) * plotH;
+
+        const x = padL + i * step + (step - barW) / 2;
+        const y = padT + (plotH - h);
+
+        // bar
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(x, y, barW, h);
+        ctx.globalAlpha = 1;
+
+        // wartość nad słupkiem (jeśli jest miejsce)
+        if (h > 18) {
+          ctx.fillStyle = text;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(v), x + barW / 2, y - 4);
+        }
+
+        // etykieta X
+        ctx.fillStyle = muted;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(lab, x + barW / 2, padT + plotH + 10);
+      });
+    }
+
+    function normalizeByDay(byDay) {
+      const order = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
+      const labels = order;
+      const values = order.map(d => (byDay && byDay[d]) ? byDay[d] : 0);
+      return { labels, values };
+    }
+
+    function normalizeByHour(byHour) {
+      const keys = Object.keys(byHour || {}).map(k => parseInt(k, 10)).filter(n => !Number.isNaN(n));
+      const min = Math.min(8, ...(keys.length ? keys : [8]));
+      const max = Math.max(17, ...(keys.length ? keys : [17]));
+      const labels = [];
+      const values = [];
+      for (let h = min; h <= max; h++) {
+        labels.push(String(h));
+        values.push((byHour && (byHour[h] || byHour[String(h)])) ? (byHour[h] || byHour[String(h)]) : 0);
+      }
+      return { labels, values };
+    }
+
+    async function loadStats() {
+      const res = await fetch(API_BASE + '/api/stats', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      document.getElementById('totalReservations').textContent = data.total ?? '0';
+
+      const topEl = document.getElementById('topStation');
+      if (data.topStation && data.topStation.id) {
+        const code = deskCodeFromId(data.topStation.id);
+        topEl.textContent = `${code} (${data.topStation.count} rezerwacji)`;
+      } else {
+        topEl.textContent = 'Brak danych';
+      }
+
+      const daily = normalizeByDay(data.byDay || {});
+      drawBarChart(document.getElementById('dailyCanvas'), daily.labels, daily.values);
+      document.getElementById('dailyNote').textContent =
+        daily.values.some(v => v > 0) ? '' : 'Brak danych do wyświetlenia (nie utworzono jeszcze rezerwacji).';
+
+      const hour = normalizeByHour(data.byHour || {});
+      drawBarChart(document.getElementById('hourCanvas'), hour.labels, hour.values);
+      document.getElementById('hourNote').textContent =
+        hour.values.some(v => v > 0) ? '' : 'Brak danych do wyświetlenia (nie utworzono jeszcze rezerwacji).';
+    }
+
+    (async () => {
+      await ensureAuth();
+      await loadStats();
+      window.addEventListener('resize', () => loadStats());
+    })();
+  </script>
+</body>
+</html>

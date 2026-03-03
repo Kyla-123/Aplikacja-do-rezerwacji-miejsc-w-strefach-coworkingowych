@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Widok kalendarza</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --bg-soft: #0f172a;
+      --accent: #38bdf8;
+      --accent-strong: #0ea5e9;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border-subtle: #1f2937;
+
+      --row-h: 56px; /* wysokość jednej godziny */
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.25) 0, transparent 45%),
+        radial-gradient(circle at 100% 100%, rgba(34, 197, 94, 0.25) 0, transparent 45%),
+        var(--bg);
+      color: var(--text-main);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .page-shell {
+      width: 100%;
+      max-width: 1100px;
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+                  radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.10), transparent 55%),
+                  linear-gradient(135deg, #020617, #020617);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+      padding: 24px 28px 36px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    h1 { margin: 0 0 6px; font-size: 1.55rem; }
+    .sub { margin: 0 0 18px; color: var(--text-muted); }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0 14px;
+    }
+
+    .topbar label { font-weight: 650; color: var(--text-main); }
+    .topbar input[type="date"] {
+      border-radius: 999px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-soft);
+      color: var(--text-main);
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .topbar button {
+      border-radius: 999px;
+      border: none;
+      padding: 8px 14px;
+      font-size: 0.9rem;
+      font-weight: 650;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #020617;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.8);
+      transition: transform 0.1s ease, filter 0.1s ease;
+    }
+    .topbar button:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    .topbar button:active { transform: translateY(0); }
+
+    .topbar #status { margin-left: auto; color: var(--text-muted); font-size: 0.9rem; }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      border-radius: 18px;
+      border: 1px solid var(--border-subtle);
+      background: rgba(15, 23, 42, 0.92);
+    }
+
+    table.calendar {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    table.calendar th,
+    table.calendar td {
+      border: 1px solid rgba(31, 41, 55, 0.85);
+      text-align: center;
+      padding: 6px;
+      position: relative;
+      background: transparent;
+    }
+
+    table.calendar thead th {
+      background: rgba(2, 6, 23, 0.35);
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    table.calendar thead th small {
+      display: block;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    table.calendar tbody th {
+      background: rgba(2, 6, 23, 0.35);
+      width: 140px;
+      color: var(--text-muted);
+      font-weight: 650;
+    }
+
+    table.calendar tbody td {
+      height: var(--row-h);
+      overflow: visible; /* ważne dla bloków rozciąganych w dół */
+      z-index: 1;
+    }
+
+    .slot {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      top: 6px;
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      line-height: 1.2;
+      text-align: left;
+      color: #041018;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.55);
+      z-index: 50;
+      overflow: hidden;
+    }
+
+    .slot strong { display: block; font-size: 0.82rem; margin-bottom: 4px; }
+    .slot small { display: block; opacity: 0.9; }
+
+    .slot-mine  { background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.85)); }
+    .slot-other { background: linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(234, 88, 12, 0.85)); }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 10px 0 12px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.8);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 999px; }
+    .dot.mine { background: var(--success); }
+    .dot.other { background: var(--warning); }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <h1>Widok kalendarza</h1>
+    <p class="sub"><a href="index.html">← Powrót do panelu głównego</a></p>
+
+    <div class="topbar">
+      <label for="weekStart">Tydzień od:</label>
+      <input type="date" id="weekStart" />
+      <button type="button" onclick="changeWeek(-7)">← Poprzedni tydzień</button>
+      <button type="button" onclick="changeWeek(7)">Następny tydzień →</button>
+      <span id="status"></span>
+    </div>
+
+    <div class="legend">
+      <span class="pill"><span class="dot mine"></span>moja rezerwacja</span>
+      <span class="pill"><span class="dot other"></span>rezerwacja innej osoby</span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="calendar">
+        <thead>
+          <tr>
+            <th>Godzina / Dzień →</th>
+            <th id="thMon">Pon</th>
+            <th id="thTue">Wt</th>
+            <th id="thWed">Śr</th>
+            <th id="thThu">Czw</th>
+            <th id="thFri">Pt</th>
+          </tr>
+        </thead>
+        <tbody id="calendarBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:5000';
+    const START_HOUR = 8;
+    const END_HOUR = 18; // ostatni wiersz zaczyna się o 17
+    const DESKS_PER_FLOOR = 20;
+
+    function pad(n) { return n.toString().padStart(2, '0'); }
+
+    function deskCodeFromId(id) {
+      const floor = (id <= DESKS_PER_FLOOR) ? 1 : 2;
+      const local = ((id - 1) % DESKS_PER_FLOOR) + 1;
+      return `P${floor}-${String(local).padStart(2, '0')}`;
+    }
+
+    async function ensureAuth() {
+      try {
+        const res = await fetch(API_BASE + '/api/me', { credentials: 'include' });
+        if (!res.ok) window.location.href = 'index.html';
+      } catch (e) {
+        window.location.href = 'index.html';
+      }
+    }
+
+    function buildTable() {
+      const body = document.getElementById('calendarBody');
+      body.innerHTML = '';
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const tr = document.createElement('tr');
+        const th = document.createElement('th');
+        th.textContent = h + ':00';
+        tr.appendChild(th);
+
+        for (let d = 0; d < 5; d++) {
+          const td = document.createElement('td');
+          td.dataset.day = d;   // 0..4 (pn..pt)
+          td.dataset.hour = h;  // 8..17
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
+      }
+    }
+
+    function getMonday(date) {
+      const d = new Date(date);
+      const day = d.getDay(); // 0=nd,1=pn,...
+      const diff = (day === 0 ? -6 : 1 - day);
+      d.setDate(d.getDate() + diff);
+      d.setHours(0,0,0,0);
+      return d;
+    }
+
+    function isoDate(d) {
+      return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    }
+
+    function setWeekStartToCurrent() {
+      const inp = document.getElementById('weekStart');
+      const monday = getMonday(new Date());
+      inp.value = isoDate(monday);
+    }
+
+    function changeWeek(deltaDays) {
+      const inp = document.getElementById('weekStart');
+      let base = inp.value ? new Date(inp.value) : new Date();
+      base.setDate(base.getDate() + deltaDays);
+      const monday = getMonday(base);
+      inp.value = isoDate(monday);
+      loadWeek();
+    }
+
+    async function fetchReservations() {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = 'Ładowanie…';
+      const username = sessionStorage.getItem('username') || null;
+
+      // najpierw spróbuj jako admin
+      try {
+        const res = await fetch(API_BASE + '/api/admin/reservations', {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          statusEl.textContent = 'Widok: administrator (wszystkie rezerwacje)';
+          return data.map(row => ({
+            resId: row[0],
+            deskId: row[1],
+            user: row[2],
+            from: row[3],
+            to: row[4],
+            mine: username && row[2] === username
+          }));
+        }
+      } catch (e) {
+        console.error('Błąd admin_reservations', e);
+      }
+
+      // jeśli nie admin – tylko moje rezerwacje
+      try {
+        const res = await fetch(API_BASE + '/api/my_reservations', {
+          credentials: 'include',
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          statusEl.textContent = 'Widok: moje rezerwacje';
+          return data.map(row => ({
+            resId: row[0],
+            deskId: row[1],
+            user: username || 'ja',
+            from: row[2],
+            to: row[3],
+            mine: true
+          }));
+        } else {
+          statusEl.textContent = 'Brak dostępu – zaloguj się na stronie głównej.';
+        }
+      } catch (e) {
+        console.error('Błąd my_reservations', e);
+        statusEl.textContent = 'Błąd podczas ładowania rezerwacji.';
+      }
+      return [];
+    }
+
+    function clearCells() {
+      document.querySelectorAll('td[data-day]').forEach(td => td.innerHTML = '');
+    }
+
+    function getRowHeightPx() {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue('--row-h').trim();
+      const n = parseFloat(raw.replace('px', ''));
+      return Number.isFinite(n) ? n : 56;
+    }
+
+    async function loadWeek() {
+      const inp = document.getElementById('weekStart');
+      if (!inp.value) setWeekStartToCurrent();
+      const monday = getMonday(new Date(inp.value));
+      inp.value = isoDate(monday);
+
+      const days = [];
+      for (let i=0;i<5;i++) {
+        const d = new Date(monday);
+        d.setDate(d.getDate()+i);
+        days.push(d);
+      }
+      document.getElementById('thMon').innerHTML = 'Pon<small>'+isoDate(days[0])+'</small>';
+      document.getElementById('thTue').innerHTML = 'Wt<small>'+isoDate(days[1])+'</small>';
+      document.getElementById('thWed').innerHTML = 'Śr<small>'+isoDate(days[2])+'</small>';
+      document.getElementById('thThu').innerHTML = 'Czw<small>'+isoDate(days[3])+'</small>';
+      document.getElementById('thFri').innerHTML = 'Pt<small>'+isoDate(days[4])+'</small>';
+
+      clearCells();
+
+      const rowH = getRowHeightPx();
+      const reservations = await fetchReservations();
+
+      reservations.forEach(r => {
+        const start = new Date(r.from);
+        const end   = new Date(r.to);
+
+        const resDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        const diffDays = Math.round((resDay - monday)/(1000*60*60*24));
+        if (diffDays < 0 || diffDays > 4) return;
+
+        const startHour = start.getHours();
+        const startMin  = start.getMinutes();
+        const endHour   = end.getHours();
+        const endMin    = end.getMinutes();
+
+        if (startHour < START_HOUR || startHour >= END_HOUR) return;
+
+        const td = document.querySelector('td[data-day="'+diffDays+'"][data-hour="'+startHour+'"]');
+        if (!td) return;
+
+        const slot = document.createElement('div');
+        slot.className = 'slot ' + (r.mine ? 'slot-mine' : 'slot-other');
+
+        const code = deskCodeFromId(r.deskId);
+        const timeLabel = `${pad(startHour)}:${pad(startMin)}–${pad(endHour)}:${pad(endMin)}`;
+        slot.innerHTML = `<strong>${code}</strong><small>${r.user || ''} · ${timeLabel}</small>`;
+        slot.title = `${code} • ${r.user || ''} • ${timeLabel}`;
+
+        // wysokość w minutach (z uwzględnieniem przesunięcia startu w obrębie godziny)
+        const durMs = Math.max(0, end.getTime() - start.getTime());
+        const durMin = durMs / 60000;
+
+        const topOffset = 6 + (startMin / 60) * rowH;
+        const height = Math.max(18, (durMin / 60) * rowH - 12);
+
+        slot.style.top = topOffset + 'px';
+        slot.style.height = height + 'px';
+
+        td.appendChild(slot);
+      });
+    }
+
+    (async () => {
+      await ensureAuth();
+      buildTable();
+      setWeekStartToCurrent();
+      await loadWeek();
+
+      document.getElementById('weekStart').addEventListener('change', loadWeek);
+      setInterval(loadWeek, 30000);
+    })();
+  </script>
+</body>
+</html>

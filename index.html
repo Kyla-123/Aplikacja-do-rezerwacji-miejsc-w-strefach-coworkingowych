@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>System Rezerwacji Stanowisk</title>
+  <style>
+    body { font-family: Arial; margin: 0; display: flex; align-items: flex-start; }
+    #main { flex: 1; padding: 20px; }
+    #sidebar { width: 160px; padding: 20px; border-left: 1px solid #ccc; min-height: 100vh; }
+    h1,h2,h3 { margin-top: 0; }
+
+    .box {
+      width: 140px;
+      height: 110px;
+      margin: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-weight: bold;
+      border-radius: 10px;
+      cursor: pointer;
+      padding: 5px;
+      box-sizing: border-box;
+      white-space: pre-line;
+      position: relative;
+    }
+    .desk-label { font-size: 12px; line-height: 1.2; }
+    .free     { background: lightgreen; }
+    .occupied { background: orange; cursor: not-allowed; }
+    .reserved { background: gold; cursor: not-allowed; }
+    .disabled { background: #e0e0e0; color: #666; cursor: not-allowed; }
+
+    .link-tile { background: #90caf9; }
+
+    #overviewSection { margin-bottom: 20px; }
+    #floorsOverview {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .floor-overview { text-align: center; }
+
+    .floor-thumb {
+      width: 390px;
+      height: 300px;
+      border: 1px solid #2c4358;
+      border-top: none;
+      border-radius: 12px;
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      gap: 4px;
+      padding: 12px;
+      padding-top: 30px;
+      box-sizing: border-box;
+      background: #f5f7fa;
+      position: relative;
+      overflow: hidden;
+      font-size: 10px;
+    }
+
+    .floor-thumb::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 1px;
+      right: 1px;
+      height: 1px;
+      background: #2c4358;
+    }
+
+    .floor-thumb::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 48%;
+      height: 6%;
+      background: #eaeaea;
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .floor-windows {
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      right: 1px;
+      height: 18px;
+      display: flex;
+      justify-content: stretch;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .floor-window {
+      flex: 1 0 0;
+      position: relative;
+      height: 100%;
+      background: #fdfdfd;
+      border-left: 1px solid #d0d0d0;
+      border-right: 1px solid #d0d0d0;
+      box-sizing: border-box;
+    }
+    .floor-window:first-child { border-left-width: 0; }
+    .floor-window:last-child  { border-right-width: 0; }
+    .floor-window::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      top: 3px;
+      height: 3px;
+      border-top: 1px solid #c0c0c0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .floor-window::after {
+      content: "";
+      position: absolute;
+      left: -1px;
+      right: -1px;
+      bottom: -3px;
+      height: 3px;
+      background: #fdfdfd;
+      border-top: 1px solid #c0c0c0;
+    }
+
+    /* DRZWI – tylko łuk (bez prostokąta w środku) */
+    .floor-door {
+      position: absolute;
+      right: 2px;   /* przy prawej ścianie */
+      bottom: 4px;  /* w dolnym marginesie, poniżej biurek */
+      width: 0;     /* brak widocznego prostokąta */
+      height: 0;
+      background: transparent;
+      border: none;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .floor-door::before {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 26px;
+      height: 26px;
+      border: 1px solid #c0c0c0;  /* kolor jak ramka okna */
+      border-right: none;
+      border-bottom: none;
+      border-radius: 0 0 0 100%;   /* ćwierć okręgu jak na planie */
+      box-sizing: border-box;
+      background: transparent;
+    }
+
+    .mini-desk {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      font-size: 10px;
+      line-height: 1;
+      color: #000;
+      z-index: 2;
+    }
+    .mini-desk-rect {
+      width: 100%;
+      height: 100%;
+      border-radius: 3px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .mini-desk-rect.mini-free     { background: lightgreen; }
+    .mini-desk-rect.mini-occupied { background: orange; }
+    .mini-desk-rect.mini-missing  { background: #e0e0e0; }
+    .mini-desk-id { font-size: 9px; }
+
+    .mini-chair-outside {
+      width: 9px;
+      height: 5px;
+      border-radius: 2px;
+      border: 1px solid #555;
+      box-sizing: border-box;
+      position: absolute;
+      left: -10px;
+      top: 50%;
+      transform: translateY(-50%) rotate(90deg);
+    }
+    .mini-chair-outside::after {
+      content: "";
+      position: absolute;
+      left: 1px;
+      right: 1px;
+      bottom: -2px;
+      height: 2px;
+      border-bottom: 1px solid #555;
+      border-radius: 0 0 2px 2px;
+    }
+
+    #floorDetails { margin-bottom: 20px; display: none; }
+    #floorDeskContainer { display: flex; flex-wrap: wrap; }
+    #legend { font-size: 0.9em; margin-bottom: 8px; }
+    #legend span {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 12px;
+    }
+    #legend .color-box {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+      margin-right: 4px;
+      border: 1px solid #aaa;
+    }
+
+    #myResList, #adminResList {
+      text-align: left; margin-left: 10px; margin-bottom: 20px;
+    }
+    #datePickerSection { margin-bottom: 15px; }
+
+    #loginForm, #welcome,
+    #overviewSection, #floorDetails,
+    #myReservationsSection, #adminPanel {
+      margin-bottom: 20px;
+    }
+
+    #modal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg-soft);
+      color: var(--text-main);
+      padding: 18px 18px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+      z-index: 1000;
+      min-width: 320px;
+      max-width: min(520px, calc(100vw - 28px));
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+
+    #modal h2 {
+      margin: 0 0 12px;
+      font-size: 1.15rem;
+    }
+
+    #modal label {
+      display: block;
+      margin: 10px 0;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    #modal input {
+      width: 100%;
+      margin-top: 6px;
+    }
+
+    #modal .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+#overlay {
+      display: none; position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+
+    input, button { margin: 5px; padding: 5px 10px; }
+  
+/* ==== NOWOCZESNY MOTYW APLIKACJI ==== */
+:root {
+  --bg: #020617;
+  --bg-soft: #0f172a;
+  --card-bg: #020617;
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --accent-strong: #0ea5e9;
+  --danger: #f97373;
+  --success: #22c55e;
+  --text-main: #e5e7eb;
+  --text-muted: #9ca3af;
+  --border-subtle: #1f2937;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* tło i typografia dla stron */
+body.has-sidebar,
+body.simple-page {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.25) 0, transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(34, 197, 94, 0.25) 0, transparent 45%),
+    var(--bg);
+  color: var(--text-main);
+}
+
+/* układ z panelem bocznym - widok główny */
+body.has-sidebar {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* główny panel */
+body.has-sidebar #main {
+  flex: 1;
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 24px 32px 40px;
+  background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+              radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.10), transparent 55%),
+              linear-gradient(135deg, #020617, #020617);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+}
+
+/* panel boczny */
+#sidebar {
+  width: 260px;
+  padding: 24px 20px;
+  border-left: none;
+  background: rgba(15, 23, 42, 0.98);
+  box-shadow: -1px 0 0 var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+#sidebar h2,
+#sidebar h3 {
+  margin-top: 0;
+  color: var(--text-main);
+}
+
+#sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+#sidebar a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  transform: translateX(2px);
+}
+
+/* karty / sekcje wewnątrz głównego panelu */
+.section, #overviewSection, #myReservationsSection, #adminPanel {
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 20px;
+  padding: 16px 18px 18px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-subtle);
+}
+
+/* tabela list rezerwacji */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* pola formularzy i przyciski */
+input, select {
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-soft);
+  color: var(--text-main);
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+button {
+  border-radius: 999px;
+  border: none;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #020617;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.8);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.9);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+/* linki w treści */
+a {
+  color: var(--accent);
+}
+
+/* kafelki biurek */
+.box {
+  border-radius: 18px;
+  background: radial-gradient(circle at top, rgba(148, 163, 184, 0.25), transparent 55%),
+              rgba(15, 23, 42, 0.95);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.box:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: var(--accent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+}
+
+/* statusy biurek */
+.free     { background: linear-gradient(135deg, rgba(34, 197, 94, 0.22), rgba(21, 128, 61, 0.96)); }
+.occupied { background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(194, 65, 12, 0.96)); cursor: not-allowed; }
+.reserved { background: linear-gradient(135deg, rgba(250, 204, 21, 0.27), rgba(161, 98, 7, 0.96)); cursor: not-allowed; }
+.disabled { background: rgba(15, 23, 42, 0.9); color: #6b7280; cursor: not-allowed; }
+
+/* link-tile na sidebarze / w głównym widoku */
+.link-tile {
+  background: var(--accent-soft);
+  border-radius: 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+/* proste karty statystyk / info */
+.stat-card, .info-card {
+  background: rgba(15, 23, 42, 0.96);
+  border-radius: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+}
+
+/* widoki prostych podstron (ustawienia, statystyki, pomoc, kalendarz) */
+body.simple-page {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+body.simple-page .page-shell {
+  width: 100%;
+  max-width: 960px;
+  background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+              radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.10), transparent 55%),
+              linear-gradient(135deg, #020617, #020617);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+  padding: 24px 28px 36px;
+}
+
+/* responsywność */
+@media (max-width: 960px) {
+  body.has-sidebar {
+    flex-direction: column;
+  }
+  #sidebar {
+    width: 100%;
+    min-height: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  body.has-sidebar #main {
+    margin: 12px 12px 24px;
+    padding: 18px 16px 24px;
+  }
+}
+</style>
+</head>
+<body class="has-sidebar">
+  <div id="main">
+    <h1>System Rezerwacji Stanowisk</h1>
+
+    <div id="loginForm">
+      <input id="username" placeholder="Wpisz swoje imię">
+      <button id="loginBtn">Zaloguj się</button>
+    </div>
+
+    <div id="welcome" style="display: none;">
+      Zalogowany jako <strong id="userDisplay"></strong>
+      <button id="logoutBtn">Wyloguj</button>
+    </div>
+
+    <div id="datePickerSection">
+      <label>Wybierz datę: <input type="date" id="selectedDate"></label>
+    </div>
+
+    <div id="overviewSection">
+      <h2>Widok biura</h2>
+      <div id="floorsOverview">
+        <div class="floor-overview">
+          <h3>Piętro I</h3>
+          <div class="floor-thumb" id="floor1Thumb"></div>
+        </div>
+        <div class="floor-overview">
+          <h3>Piętro II</h3>
+          <div class="floor-thumb" id="floor2Thumb"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="floorDetails">
+      <h2 id="floorDetailsTitle">Piętro</h2>
+      <div id="legend">
+        <span><span class="color-box" style="background: lightgreen;"></span> wolne</span>
+        <span><span class="color-box" style="background: orange;"></span> zajęte / zarezerwowane</span>
+      </div>
+      <div id="floorDeskContainer"></div>
+    </div>
+
+    <div id="myReservationsSection">
+      <h2>Moje rezerwacje</h2>
+      <div id="myResList">Ładowanie rezerwacji…</div>
+    </div>
+
+    <div id="adminPanel" style="display: none;">
+      <h2>Panel administratora</h2>
+      <div id="adminResList">Ładowanie rezerwacji…</div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <h2>Menu</h2>
+    <div class="box link-tile" id="calendarTile">Kalendarz</div>
+    <div class="box link-tile" id="exportCsvTile">Eksport CSV</div>
+    <div class="box link-tile" id="statsTile">Statystyki</div>
+    <div class="box link-tile" id="settingsTile">Ustawienia</div>
+    <div class="box link-tile" id="helpTile">Pomoc</div>
+  </div>
+
+  <div id="modal">
+    <h2>Rezerwacja stanowiska <span id="modalId"></span></h2>
+    <label>Data: <input type="date" id="date"></label><br>
+    <label>Od: <input type="time" id="startTime"></label><br>
+    <label>Do: <input type="time" id="endTime"></label><br>
+    <div class="actions">
+      <button id="closeModalBtn" type="button">Anuluj</button>
+      <button id="submitReservationBtn" type="button">Zarezerwuj</button>
+    </div>
+  </div>
+  <div id="overlay"></div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:5000';
+    const DESKS_PER_FLOOR = 20;
+    const FLOORS = [1, 2];
+
+    const MINI_POSITIONS = [
+      { row: 1, col: 2 }, { row: 2, col: 2 }, { row: 3, col: 2 },
+      { row: 1, col: 4 }, { row: 2, col: 4 }, { row: 3, col: 4 },
+      { row: 1, col: 7 }, { row: 2, col: 7 }, { row: 3, col: 7 },
+      { row: 1, col: 9 }, { row: 2, col: 9 }, { row: 3, col: 9 },
+      { row: 5, col: 2 }, { row: 6, col: 2 },
+      { row: 5, col: 4 }, { row: 6, col: 4 },
+      { row: 5, col: 7 }, { row: 6, col: 7 },
+      { row: 5, col: 9 }, { row: 6, col: 9 }
+    ];
+
+    let selectedId = null;
+    let selectedFloor = null;
+    let deskStatus = {};
+    let refreshIntervalId = null;
+    let myResIntervalId = null;
+    let adminIntervalId = null;
+
+    function getDeskMeta(id) {
+      const maxId = DESKS_PER_FLOOR * FLOORS.length;
+      if (id < 1 || id > maxId) return null;
+
+      const floor = (id <= DESKS_PER_FLOOR) ? 1 : 2;
+      const indexWithinFloor = (id - 1) % DESKS_PER_FLOOR;
+      const localNumber = indexWithinFloor + 1;
+
+      const code = 'P' + floor + '-' + String(localNumber).padStart(2, '0');
+      return { id, floor, indexWithinFloor, localNumber, code };
+    }
+
+    function deskCodeFromId(id) {
+      const meta = getDeskMeta(id);
+      return meta ? meta.code : String(id);
+    }
+
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const submitReservationBtn = document.getElementById('submitReservationBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const overlay = document.getElementById('overlay');
+
+    function updateLoginState() {
+      const user = sessionStorage.getItem('username');
+      document.getElementById('loginForm').style.display = user ? 'none' : 'block';
+      document.getElementById('welcome').style.display   = user ? 'block' : 'none';
+      document.getElementById('userDisplay').innerText   = user || '';
+      document.getElementById('adminPanel').style.display= (user === 'admin' ? 'block' : 'none');
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      if (!username) { alert('Podaj imię'); return; }
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username })
+      });
+      if (res.ok) {
+        sessionStorage.setItem('username', username);
+        updateLoginState();
+        await fetchData();
+        await loadMyReservations();
+        if (username === 'admin') await loadAdminReservations();
+
+        if (refreshIntervalId) clearInterval(refreshIntervalId);
+        refreshIntervalId = setInterval(fetchData, 10000);
+
+        if (myResIntervalId) clearInterval(myResIntervalId);
+        myResIntervalId = setInterval(loadMyReservations, 60000);
+
+        if (adminIntervalId) clearInterval(adminIntervalId);
+        adminIntervalId = setInterval(() => {
+          if (sessionStorage.getItem('username') === 'admin') {
+            loadAdminReservations();
+          }
+        }, 60000);
+      } else {
+        alert('Błąd logowania');
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
+      } catch (e) {
+        // ignorujemy błąd sieci przy wylogowaniu
+      }
+
+      sessionStorage.removeItem('username');
+      updateLoginState();
+      deskStatus = {};
+      document.getElementById('floor1Thumb').innerHTML = '';
+      document.getElementById('floor2Thumb').innerHTML = '';
+      document.getElementById('floorDetails').style.display = 'none';
+      document.getElementById('myResList').innerHTML = '';
+      document.getElementById('adminResList').innerHTML = '';
+
+      if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
+        refreshIntervalId = null;
+      }
+
+      if (myResIntervalId) {
+        clearInterval(myResIntervalId);
+        myResIntervalId = null;
+      }
+
+      if (adminIntervalId) {
+        clearInterval(adminIntervalId);
+        adminIntervalId = null;
+      }
+    }
+
+    function addFloorIcons(thumb) {
+      const doorIcon = document.createElement('div');
+      doorIcon.className = 'floor-door';
+      thumb.appendChild(doorIcon);
+    }
+
+    function addFloorWindows(thumb) {
+      const strip = document.createElement('div');
+      strip.className = 'floor-windows';
+      for (let i = 0; i < 8; i++) {
+        const w = document.createElement('div');
+        w.className = 'floor-window';
+        strip.appendChild(w);
+      }
+      thumb.appendChild(strip);
+    }
+
+    function renderOverview() {
+      const floor1Thumb = document.getElementById('floor1Thumb');
+      const floor2Thumb = document.getElementById('floor2Thumb');
+      floor1Thumb.innerHTML = '';
+      floor2Thumb.innerHTML = '';
+
+      FLOORS.forEach(floor => {
+        const thumb = (floor === 1) ? floor1Thumb : floor2Thumb;
+
+        for (let localIndex = 0; localIndex < DESKS_PER_FLOOR; localIndex++) {
+          const globalId = (floor - 1) * DESKS_PER_FLOOR + localIndex + 1;
+          const meta = getDeskMeta(globalId);
+          const status = deskStatus[globalId];
+
+          const cell = document.createElement('div');
+          cell.className = 'mini-desk';
+
+          const pos = MINI_POSITIONS[localIndex];
+          if (pos) {
+            cell.style.gridRowStart = pos.row;
+            cell.style.gridColumnStart = pos.col;
+          }
+
+          const rect = document.createElement('div');
+          rect.className = 'mini-desk-rect';
+
+          const idSpan = document.createElement('span');
+          idSpan.className = 'mini-desk-id';
+          idSpan.textContent = meta ? String(meta.localNumber).padStart(2, '0') : globalId;
+          rect.appendChild(idSpan);
+
+          if (!meta || !status) {
+            rect.classList.add('mini-missing');
+          } else {
+            if (status.occupied || status.reserved) rect.classList.add('mini-occupied');
+            else rect.classList.add('mini-free');
+
+            cell.addEventListener('click', e => {
+              e.stopPropagation();
+              openFloorDetail(floor);
+            });
+
+            const chair = document.createElement('div');
+            chair.className = 'mini-chair-outside';
+            cell.appendChild(chair);
+          }
+
+          cell.appendChild(rect);
+          thumb.appendChild(cell);
+        }
+
+        addFloorWindows(thumb);
+        addFloorIcons(thumb);
+
+        thumb.onclick = e => {
+          if (e.target === thumb) openFloorDetail(floor);
+        };
+      });
+    }
+
+    function renderFloorDesks(floor) {
+      const container = document.getElementById('floorDeskContainer');
+      container.innerHTML = '';
+
+      for (let i = 1; i <= DESKS_PER_FLOOR * FLOORS.length; i++) {
+        const meta = getDeskMeta(i);
+        if (!meta || meta.floor !== floor) continue;
+        const status = deskStatus[i];
+        const box = document.createElement('div');
+
+        if (!status) {
+          box.className = 'box disabled';
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'desk-label';
+          labelDiv.textContent = `Stanowisko ${meta.code}`;
+          box.appendChild(labelDiv);
+        } else {
+          let cls = 'box ';
+          if (status.occupied) cls += 'occupied';
+          else if (status.reserved) cls += 'reserved';
+          else cls += 'free';
+          box.className = cls;
+
+          let label = `Stanowisko ${meta.code}`;
+          if (status.reserved) {
+            const fromStr = new Date(status.from).toLocaleTimeString();
+            const toStr   = new Date(status.to).toLocaleTimeString();
+            label += `\n${status.by}\n${fromStr}–${toStr}`;
+          }
+          const labelDiv = document.createElement('div');
+          labelDiv.className = 'desk-label';
+          labelDiv.textContent = label;
+          box.appendChild(labelDiv);
+
+          if (!status.occupied && !status.reserved && sessionStorage.getItem('username')) {
+            box.addEventListener('click', () => openModal(i));
+          }
+        }
+        container.appendChild(box);
+      }
+    }
+
+    function openFloorDetail(floor) {
+      selectedFloor = floor;
+      const selDate = document.getElementById('selectedDate');
+      const dateLabel = selDate && selDate.value ? (' – ' + selDate.value) : '';
+      document.getElementById('floorDetailsTitle').textContent =
+        ((floor === 1) ? 'Piętro I' : 'Piętro II') + dateLabel;
+      document.getElementById('floorDetails').style.display = 'block';
+      renderFloorDesks(floor);
+      document.getElementById('floorDetails').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function fetchData() {
+      const dateInput = document.getElementById('selectedDate');
+      const dateParam = dateInput && dateInput.value ? `?date=${dateInput.value}` : '';
+      const res = await fetch(`http://127.0.0.1:5000/api/get_status${dateParam}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        console.error(await res.text());
+        return;
+      }
+      const data = await res.json();
+      deskStatus = {};
+      data.forEach(([id, occupied, reserved, by, from, to]) => {
+        deskStatus[id] = { occupied, reserved, by, from, to };
+      });
+
+      renderOverview();
+      if (selectedFloor !== null) renderFloorDesks(selectedFloor);
+    }
+
+    async function loadMyReservations() {
+      const res = await fetch('http://127.0.0.1:5000/api/my_reservations', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        console.error(await res.text());
+        return;
+      }
+      const data = await res.json();
+      const list = document.getElementById('myResList');
+      list.innerHTML = '';
+      data.forEach(([resId, stationId, from, to]) => {
+        const btn = document.createElement('button');
+        btn.textContent = `Anuluj ${deskCodeFromId(stationId)} (${new Date(from).toLocaleString()}–${new Date(to).toLocaleTimeString()})`;
+        btn.addEventListener('click', async () => {
+          await fetch('http://127.0.0.1:5000/api/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id: resId })
+          });
+          await fetchData();
+          await loadMyReservations();
+        });
+        list.appendChild(btn);
+      });
+    }
+
+    async function loadAdminReservations() {
+      const res = await fetch('http://127.0.0.1:5000/api/admin/reservations', {
+        credentials: 'include',
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        console.error(await res.text());
+        return;
+      }
+      const data = await res.json();
+      const list = document.getElementById('adminResList');
+      list.innerHTML = '';
+      data.forEach(([resId, stationId, user, from, to]) => {
+        const btn = document.createElement('button');
+        btn.textContent = `Anuluj ${user} · ${deskCodeFromId(stationId)}`;
+        btn.addEventListener('click', async () => {
+          await fetch('http://127.0.0.1:5000/api/admin/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ id: resId })
+          });
+          await fetchData();
+          await loadAdminReservations();
+          await loadMyReservations();
+        });
+        list.appendChild(btn);
+      });
+    }
+
+    function openModal(id) {
+      selectedId = id;
+      document.getElementById('modalId').textContent = deskCodeFromId(id);
+      const sel = document.getElementById('selectedDate');
+      if (sel && sel.value) {
+        document.getElementById('date').value = sel.value;
+      } else {
+        document.getElementById('date').valueAsDate = new Date();
+      }
+      document.getElementById('startTime').value = '09:00';
+      document.getElementById('endTime').value   = '10:00';
+      document.getElementById('modal').style.display   = 'block';
+      overlay.style.display = 'block';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+      overlay.style.display = 'none';
+    }
+
+    async function submitReservation() {
+      const date  = document.getElementById('date').value;
+      const start = document.getElementById('startTime').value;
+      const end   = document.getElementById('endTime').value;
+      if (!date || !start || !end) {
+        alert('Uzupełnij wszystkie pola');
+        return;
+      }
+      // Blokada rezerwacji w soboty i niedziele (frontend)
+      const pickedDate = new Date(date + 'T00:00:00');
+      const dayOfWeek = pickedDate.getDay(); // 0 = niedziela, 6 = sobota
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        alert('Nasze biuro jest nieczynne w soboty i niedziele.');
+        return;
+      }
+      const from = `${date}T${start}:00`;
+      const to   = `${date}T${end}:00`;
+      const res  = await fetch('http://127.0.0.1:5000/api/reserve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id: selectedId, start: from, end: to })
+      });
+      if (res.ok) {
+        alert('Zarezerwowano');
+        closeModal();
+        await fetchData();
+        await loadMyReservations();
+        if (sessionStorage.getItem('username') === 'admin') {
+          await loadAdminReservations();
+        }
+      } else {
+        try {
+          const err = await res.json();
+          alert('Błąd: ' + err.error);
+        } catch {
+          alert('Błąd rezerwacji');
+        }
+      }
+    }
+
+    document.getElementById('calendarTile').addEventListener('click', () => {
+      location.href = 'calendar.html';
+    });
+    document.getElementById('exportCsvTile').addEventListener('click', exportCsv);
+    document.getElementById('statsTile').addEventListener('click', () => {
+      location.href = 'stats.html';
+    });
+    document.getElementById('settingsTile').addEventListener('click', () => {
+      location.href = 'settings.html';
+    });
+    document.getElementById('helpTile').addEventListener('click', () => {
+      location.href = 'help.html';
+    });
+
+    async function exportCsv() {
+      const res = await fetch('http://127.0.0.1:5000/api/export_csv', {
+        credentials: 'include'
+      });
+      if (!res.ok) { alert('Błąd eksportu'); return; }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'rezerwacje.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    loginBtn.addEventListener('click', login);
+    logoutBtn.addEventListener('click', logout);
+    submitReservationBtn.addEventListener('click', submitReservation);
+    closeModalBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', closeModal);
+
+    const dateInput = document.getElementById('selectedDate');
+    if (dateInput && !dateInput.value) {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, '0');
+      const d = String(today.getDate()).padStart(2, '0');
+      dateInput.value = `${y}-${m}-${d}`;
+      dateInput.addEventListener('change', () => {
+        if (sessionStorage.getItem('username')) {
+          fetchData();
+        }
+      });
+    }
+
+    async function bootstrap() {
+      updateLoginState();
+
+      const saved = sessionStorage.getItem('username');
+      if (!saved) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
+        if (!res.ok) {
+          sessionStorage.removeItem('username');
+          updateLoginState();
+          return;
+        }
+
+        await fetchData();
+        await loadMyReservations();
+        if (saved === 'admin') await loadAdminReservations();
+
+        if (refreshIntervalId) clearInterval(refreshIntervalId);
+        refreshIntervalId = setInterval(fetchData, 10000);
+
+        if (myResIntervalId) clearInterval(myResIntervalId);
+        myResIntervalId = setInterval(loadMyReservations, 60000);
+
+        if (adminIntervalId) clearInterval(adminIntervalId);
+        adminIntervalId = setInterval(() => {
+          if (sessionStorage.getItem('username') === 'admin') {
+            loadAdminReservations();
+          }
+        }, 60000);
+      } catch (e) {
+        // brak połączenia z backendem
+      }
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
