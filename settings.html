@@ -13,7 +13,7 @@
     .note { font-size: 0.9em; color: #555; }
     a { text-decoration: none; color: #007ACC; }
   
-/* ==== NOWOCZESNY MOTYW APLIKACJI ==== */
+/* */
 :root {
   --bg: #020617;
   --bg-soft: #0f172a;
@@ -256,6 +256,7 @@ body.simple-page .page-shell {
 </style>
 </head>
 <body class="simple-page">
+  <!-- Podstrona ustawień konta użytkownika. -->
   <div class="page-shell">
 
   <h1>Ustawienia</h1>
@@ -288,8 +289,10 @@ body.simple-page .page-shell {
   </form>
 
   <script>
+    // Konfiguracja połączenia z backendem dla widoku ustawień.
     const API_BASE = 'http://127.0.0.1:5000';
 
+    // Weryfikuje aktywną sesję i zwraca nazwę użytkownika potrzebną do wypełnienia formularza.
     async function ensureAuth() {
       try {
         const res = await fetch(API_BASE + '/api/me', { credentials: 'include' });
@@ -305,6 +308,7 @@ body.simple-page .page-shell {
       }
     }
 
+    // Pobiera zapisane ustawienia i uzupełnia nimi formularz na stronie.
     async function loadSettings(username) {
       document.getElementById('usernameInput').value = username;
       document.getElementById('usernameInput').readOnly = true;
@@ -316,6 +320,7 @@ body.simple-page .page-shell {
       if (data.notifications) document.getElementById('notifications').value = data.notifications;
     }
 
+    // Zbiera wartości z formularza i zapisuje je w bazie przez endpoint backendowy.
     async function saveSettings() {
       const d = document.getElementById('defaultDuration').value;
       const n = document.getElementById('notifications').value;
@@ -332,8 +337,10 @@ body.simple-page .page-shell {
       }
     }
 
+    // Rejestracja zdarzenia zapisu formularza.
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
 
+    // Inicjalizacja strony: autoryzacja użytkownika i wczytanie jego ustawień.
     (async () => {
       const u = await ensureAuth();
       if (u) await loadSettings(u);
