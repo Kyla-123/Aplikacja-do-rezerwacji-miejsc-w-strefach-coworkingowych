@@ -1,9 +1,16 @@
+"""Backend aplikacji do rezerwacji stanowisk pracy.
+
+Plik zawiera konfigurację Flask, obsługę sesji użytkownika, dostęp do bazy SQLite
+oraz endpointy API wykorzystywane przez interfejs webowy.
+"""
+
 from flask import Flask, request, jsonify, session, make_response
 from flask_cors import CORS
 import sqlite3
 import os
 from datetime import datetime, date, time
 
+# Inicjalizacja aplikacji serwerowej oraz głównego punktu wejścia dla endpointów API.
 app = Flask(__name__)
 
 # W wersji produkcyjnej klucz powinien być przekazywany przez zmienną środowiskową.
@@ -14,11 +21,16 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
 )
+# Konfiguracja CORS pozwala frontendowi działającemu lokalnie komunikować się z backendem
+# z zachowaniem ciasteczek sesyjnych.
 CORS(app, supports_credentials=True, origins=["http://127.0.0.1:8080"])
 
+# Ścieżka do lokalnej bazy SQLite przechowującej stanowiska, rezerwacje i ustawienia użytkowników.
 DB = 'stanowiska.db'
 
 
+# Funkcja przygotowuje strukturę bazy danych przy uruchomieniu aplikacji
+# i uzupełnia listę stanowisk startowych.
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
@@ -55,6 +67,8 @@ def init_db():
     conn.close()
 
 
+# Funkcja porządkowa pozostawiona jako punkt rozszerzenia.
+# W obecnej wersji status stanowisk jest wyliczany dynamicznie na podstawie zakresów dat.
 def clean_expired():
     """
     Status biurek jest  liczony na podstawie daty wybranej w kalendarzu.
@@ -62,11 +76,15 @@ def clean_expired():
     return
 
 
+# Hook wykonywany przed każdym żądaniem.
+# Pozwala w jednym miejscu uruchamiać logikę porządkową wspólną dla całej aplikacji.
 @app.before_request
 def before_request():
     clean_expired()
 
 
+# Endpoint logowania zapisuje uproszczoną sesję użytkownika i zapewnia domyślne ustawienia
+# dla nowego konta, tak aby frontend mógł od razu pobrać komplet danych startowych.
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -94,12 +112,14 @@ def login():
     return resp
 
 
+# Endpoint wylogowania usuwa użytkownika z sesji po stronie backendu.
 @app.route('/api/logout', methods=['POST'])
 def logout_api():
     session.pop('username', None)
     return jsonify({"message": "Wylogowano"}), 200
 
 
+# Prosty endpoint weryfikujący aktywną sesję oraz zwracający nazwę zalogowanego użytkownika.
 @app.route('/api/me', methods=['GET'])
 def me():
     if 'username' not in session:
@@ -107,6 +127,8 @@ def me():
     return jsonify({"username": session['username']}), 200
 
 
+# Endpoint zwraca stan wszystkich stanowisk dla wybranego dnia.
+# Dane są agregowane z tabeli rezerwacji i służą do odświeżania głównego widoku biura.
 @app.route('/api/status', methods=['GET'])
 @app.route('/api/get_status', methods=['GET'])
 def get_status():
@@ -131,12 +153,17 @@ def get_status():
     else:
         selected_date = date.today()
 
+    # Dla wskazanej daty wyznaczany jest pełny zakres dobowy, aby łatwo sprawdzić
+    # czy istnieją rezerwacje nachodzące na wybrany dzień.
     # zakres doby
     day_start = datetime.combine(selected_date, time.min).isoformat(timespec='seconds')
     day_end = datetime.combine(selected_date, time.max).isoformat(timespec='seconds')
 
     conn = sqlite3.connect(DB)
     c = conn.cursor()
+    # Zapytanie buduje wynik dla każdego stanowiska osobno.
+    # Pole occupied pozostaje technicznym placeholderem, natomiast reserved i dane szczegółowe
+    # są wyliczane na podstawie rekordów z tabeli reservations.
     # occupied zawsze 0, reserved wyznaczamy z tabeli reservations
     c.execute("""
         SELECT
@@ -188,6 +215,8 @@ def get_status():
     return jsonify(rows)
 
 
+# Endpoint zapisuje nową rezerwację po stronie backendu.
+# Zawiera podstawową walidację danych wejściowych oraz kontrolę konfliktów czasowych.
 @app.route('/api/reserve', methods=['POST'])
 def reserve():
     if 'username' not in session:
@@ -231,6 +260,8 @@ def reserve():
         conn.close()
         return jsonify({"error": "Brak takiego stanowiska"}), 404
 
+    # Konflikt sprawdzany jest przez wyszukanie dowolnej rezerwacji, która nachodzi czasowo
+    # na nowo zgłaszany przedział dla tego samego stanowiska.
     # sprawdź konflikt czasowy z istniejącymi rezerwacjami (na tym samym stanowisku)
     c.execute("""
         SELECT COUNT(*)
@@ -263,6 +294,8 @@ def reserve():
 
 
 
+# Endpoint zwraca listę rezerwacji aktualnie zalogowanego użytkownika
+# do wyświetlenia w sekcji 'Moje rezerwacje'.
 @app.route('/api/my_reservations', methods=['GET'])
 def my_reservations():
     if 'username' not in session:
@@ -283,6 +316,8 @@ def my_reservations():
     return jsonify(rows)
 
 
+# Endpoint umożliwia użytkownikowi anulowanie wyłącznie własnej rezerwacji.
+# Dodatkowe sprawdzenie właściciela wpisu ogranicza możliwość usuwania cudzych danych.
 @app.route('/api/cancel', methods=['POST'])
 def cancel():
     if 'username' not in session:
@@ -319,6 +354,8 @@ def cancel():
     return jsonify({"message": "Anulowano rezerwację"}), 200
 
 
+# Endpoint administracyjny zwraca pełną listę rezerwacji niezależnie od właściciela.
+# Dane są wykorzystywane przez panel administratora i widok kalendarza.
 @app.route('/api/admin/reservations', methods=['GET'])
 def admin_reservations():
     if session.get('username') != 'admin':
@@ -338,6 +375,7 @@ def admin_reservations():
     return jsonify(rows)
 
 
+# Endpoint administracyjny pozwala usunąć dowolną rezerwację po identyfikatorze.
 @app.route('/api/admin/cancel', methods=['POST'])
 def admin_cancel():
     if session.get('username') != 'admin':
@@ -367,6 +405,8 @@ def admin_cancel():
     return jsonify({"message": "Rezerwacja anulowana przez admina"}), 200
 
 
+# Endpoint generuje prosty eksport CSV wszystkich rezerwacji.
+# Plik może zostać pobrany bezpośrednio z poziomu interfejsu użytkownika.
 @app.route('/api/export_csv', methods=['GET'])
 def export_csv():
     if 'username' not in session:
@@ -401,6 +441,7 @@ def export_csv():
     return resp
 
 
+# Endpoint odczytuje zapisane preferencje użytkownika wykorzystywane w widoku ustawień.
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     if 'username' not in session:
@@ -419,6 +460,8 @@ def get_settings():
     })
 
 
+# Endpoint aktualizuje ustawienia użytkownika, zachowując jeden rekord na użytkownika
+# dzięki mechanizmowi UPSERT w SQLite.
 @app.route('/api/settings', methods=['POST'])
 def update_settings():
     if 'username' not in session:
@@ -442,6 +485,8 @@ def update_settings():
     return jsonify({"message": "Ustawienia zapisane"})
 
 
+# Endpoint przygotowuje zbiorcze statystyki do osobnego widoku analitycznego.
+# Zwraca liczbę rezerwacji, najpopularniejsze stanowisko oraz rozkład dni i godzin.
 @app.route('/api/stats', methods=['GET'])
 def stats():
     if 'username' not in session:
@@ -482,6 +527,7 @@ def stats():
     return jsonify({"total": total, "topStation": top_station, "byDay": byDay, "byHour": byHour})
 
 
+# Przy bezpośrednim uruchomieniu pliku inicjalizowana jest baza i startuje lokalny serwer developerski.
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
