@@ -130,12 +130,12 @@
       border-top: 1px solid #c0c0c0;
     }
 
-    /* DRZWI – tylko łuk (bez prostokąta w środku) */
+    /* DRZWI  */
     .floor-door {
       position: absolute;
-      right: 2px;   /* przy prawej ścianie */
-      bottom: 4px;  /* w dolnym marginesie, poniżej biurek */
-      width: 0;     /* brak widocznego prostokąta */
+      right: 2px;   /**/
+      bottom: 4px;  /**/
+      width: 0;     /**/
       height: 0;
       background: transparent;
       border: none;
@@ -149,10 +149,10 @@
       bottom: 0;
       width: 26px;
       height: 26px;
-      border: 1px solid #c0c0c0;  /* kolor jak ramka okna */
+      border: 1px solid #c0c0c0;  
       border-right: none;
       border-bottom: none;
-      border-radius: 0 0 0 100%;   /* ćwierć okręgu jak na planie */
+      border-radius: 0 0 0 100%;   
       box-sizing: border-box;
       background: transparent;
     }
@@ -282,7 +282,7 @@
 
     input, button { margin: 5px; padding: 5px 10px; }
   
-/* ==== NOWOCZESNY MOTYW APLIKACJI ==== */
+/*  */
 :root {
   --bg: #020617;
   --bg-soft: #0f172a;
@@ -525,9 +525,11 @@ body.simple-page .page-shell {
 </style>
 </head>
 <body class="has-sidebar">
+  <!-- Główna część interfejsu: logowanie, widok biura, lista rezerwacji i panel administratora. -->
   <div id="main">
     <h1>System Rezerwacji Stanowisk</h1>
 
+    <!-- Sekcja logowania do uproszczonej sesji użytkownika. -->
     <div id="loginForm">
       <input id="username" placeholder="Wpisz swoje imię">
       <button id="loginBtn">Zaloguj się</button>
@@ -542,6 +544,7 @@ body.simple-page .page-shell {
       <label>Wybierz datę: <input type="date" id="selectedDate"></label>
     </div>
 
+    <!-- Podgląd obu pięter w formie miniatur z aktualnym stanem stanowisk. -->
     <div id="overviewSection">
       <h2>Widok biura</h2>
       <div id="floorsOverview">
@@ -556,6 +559,7 @@ body.simple-page .page-shell {
       </div>
     </div>
 
+    <!-- Szczegółowy widok wybranego piętra z możliwością wyboru konkretnego stanowiska. -->
     <div id="floorDetails">
       <h2 id="floorDetailsTitle">Piętro</h2>
       <div id="legend">
@@ -565,17 +569,20 @@ body.simple-page .page-shell {
       <div id="floorDeskContainer"></div>
     </div>
 
+    <!-- Lista rezerwacji aktualnie zalogowanego użytkownika. -->
     <div id="myReservationsSection">
       <h2>Moje rezerwacje</h2>
       <div id="myResList">Ładowanie rezerwacji…</div>
     </div>
 
+    <!-- Panel administratora widoczny tylko dla konta admin. -->
     <div id="adminPanel" style="display: none;">
       <h2>Panel administratora</h2>
       <div id="adminResList">Ładowanie rezerwacji…</div>
     </div>
   </div>
 
+  <!-- Panel boczny z odnośnikami do dodatkowych widoków aplikacji. -->
   <div id="sidebar">
     <h2>Menu</h2>
     <div class="box link-tile" id="calendarTile">Kalendarz</div>
@@ -585,6 +592,7 @@ body.simple-page .page-shell {
     <div class="box link-tile" id="helpTile">Pomoc</div>
   </div>
 
+  <!-- Modal służący do wprowadzania parametrów nowej rezerwacji. -->
   <div id="modal">
     <h2>Rezerwacja stanowiska <span id="modalId"></span></h2>
     <label>Data: <input type="date" id="date"></label><br>
@@ -598,10 +606,12 @@ body.simple-page .page-shell {
   <div id="overlay"></div>
 
   <script>
+    // Konfiguracja frontendowa wspólna dla głównego widoku aplikacji.
     const API_BASE = 'http://127.0.0.1:5000';
     const DESKS_PER_FLOOR = 20;
     const FLOORS = [1, 2];
 
+    // Tablica określa pozycje miniaturek biurek w siatce poglądowej piętra.
     const MINI_POSITIONS = [
       { row: 1, col: 2 }, { row: 2, col: 2 }, { row: 3, col: 2 },
       { row: 1, col: 4 }, { row: 2, col: 4 }, { row: 3, col: 4 },
@@ -613,6 +623,8 @@ body.simple-page .page-shell {
       { row: 5, col: 9 }, { row: 6, col: 9 }
     ];
 
+    // Zmienne stanu widoku przechowują wybrane stanowisko, aktywne piętro
+    // oraz identyfikatory cyklicznych odświeżeń danych.
     let selectedId = null;
     let selectedFloor = null;
     let deskStatus = {};
@@ -620,6 +632,7 @@ body.simple-page .page-shell {
     let myResIntervalId = null;
     let adminIntervalId = null;
 
+    // Zwraca metadane stanowiska, m.in. numer piętra i kod prezentowany w interfejsie.
     function getDeskMeta(id) {
       const maxId = DESKS_PER_FLOOR * FLOORS.length;
       if (id < 1 || id > maxId) return null;
@@ -632,6 +645,7 @@ body.simple-page .page-shell {
       return { id, floor, indexWithinFloor, localNumber, code };
     }
 
+    // Upraszcza zamianę identyfikatora liczbowego na czytelny kod stanowiska.
     function deskCodeFromId(id) {
       const meta = getDeskMeta(id);
       return meta ? meta.code : String(id);
@@ -643,6 +657,7 @@ body.simple-page .page-shell {
     const closeModalBtn = document.getElementById('closeModalBtn');
     const overlay = document.getElementById('overlay');
 
+    // Synchronizuje elementy interfejsu z aktualnym stanem logowania zapisanym w sessionStorage.
     function updateLoginState() {
       const user = sessionStorage.getItem('username');
       document.getElementById('loginForm').style.display = user ? 'none' : 'block';
@@ -651,6 +666,7 @@ body.simple-page .page-shell {
       document.getElementById('adminPanel').style.display= (user === 'admin' ? 'block' : 'none');
     }
 
+    // Wysyła dane logowania do backendu i po sukcesie uruchamia ładowanie danych użytkownika.
     async function login() {
       const username = document.getElementById('username').value.trim();
       if (!username) { alert('Podaj imię'); return; }
@@ -684,6 +700,7 @@ body.simple-page .page-shell {
       }
     }
 
+    // Czyści sesję po stronie backendu i resetuje stan interfejsu po stronie przeglądarki.
     async function logout() {
       try {
         await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' });
@@ -716,12 +733,14 @@ body.simple-page .page-shell {
       }
     }
 
+    // Dodaje element dekoracyjny symbolizujący drzwi w miniaturze piętra.
     function addFloorIcons(thumb) {
       const doorIcon = document.createElement('div');
       doorIcon.className = 'floor-door';
       thumb.appendChild(doorIcon);
     }
 
+    // Dodaje górny pas okien, aby miniatura piętra była czytelniejsza wizualnie.
     function addFloorWindows(thumb) {
       const strip = document.createElement('div');
       strip.className = 'floor-windows';
@@ -733,6 +752,7 @@ body.simple-page .page-shell {
       thumb.appendChild(strip);
     }
 
+    // Buduje poglądowy widok obu pięter na podstawie aktualnych statusów stanowisk.
     function renderOverview() {
       const floor1Thumb = document.getElementById('floor1Thumb');
       const floor2Thumb = document.getElementById('floor2Thumb');
@@ -793,6 +813,7 @@ body.simple-page .page-shell {
       });
     }
 
+    // Renderuje szczegółowy widok wybranego piętra wraz z etykietami i statusem każdego stanowiska.
     function renderFloorDesks(floor) {
       const container = document.getElementById('floorDeskContainer');
       container.innerHTML = '';
@@ -835,6 +856,7 @@ body.simple-page .page-shell {
       }
     }
 
+    // Otwiera sekcję szczegółową dla wybranego piętra i przewija użytkownika do tej części strony.
     function openFloorDetail(floor) {
       selectedFloor = floor;
       const selDate = document.getElementById('selectedDate');
@@ -846,8 +868,10 @@ body.simple-page .page-shell {
       document.getElementById('floorDetails').scrollIntoView({ behavior: 'smooth' });
     }
 
+    // Pobiera z backendu status stanowisk dla wskazanej daty i odświeża widoki interfejsu.
     async function fetchData() {
-      const dateInput = document.getElementById('selectedDate');
+      // Inicjalizacja domyślnej daty filtrowania oraz odświeżania po jej zmianie.
+    const dateInput = document.getElementById('selectedDate');
       const dateParam = dateInput && dateInput.value ? `?date=${dateInput.value}` : '';
       const res = await fetch(`http://127.0.0.1:5000/api/get_status${dateParam}`, {
         credentials: 'include',
@@ -867,6 +891,7 @@ body.simple-page .page-shell {
       if (selectedFloor !== null) renderFloorDesks(selectedFloor);
     }
 
+    // Ładuje listę własnych rezerwacji użytkownika i tworzy przyciski anulowania.
     async function loadMyReservations() {
       const res = await fetch('http://127.0.0.1:5000/api/my_reservations', {
         credentials: 'include',
@@ -896,6 +921,7 @@ body.simple-page .page-shell {
       });
     }
 
+    // Ładuje pełną listę rezerwacji dostępną dla administratora.
     async function loadAdminReservations() {
       const res = await fetch('http://127.0.0.1:5000/api/admin/reservations', {
         credentials: 'include',
@@ -926,6 +952,7 @@ body.simple-page .page-shell {
       });
     }
 
+    // Otwiera okno modalne dla wybranego stanowiska i wstępnie uzupełnia pola formularza.
     function openModal(id) {
       selectedId = id;
       document.getElementById('modalId').textContent = deskCodeFromId(id);
@@ -941,11 +968,14 @@ body.simple-page .page-shell {
       overlay.style.display = 'block';
     }
 
+    // Zamyka modal rezerwacji i ukrywa warstwę przyciemniającą.
     function closeModal() {
       document.getElementById('modal').style.display = 'none';
       overlay.style.display = 'none';
     }
 
+    // Zbiera dane z formularza, wykonuje podstawową walidację po stronie frontendu
+    // i przekazuje rezerwację do backendu.
     async function submitReservation() {
       const date  = document.getElementById('date').value;
       const start = document.getElementById('startTime').value;
@@ -987,6 +1017,7 @@ body.simple-page .page-shell {
       }
     }
 
+    // Rejestracja zdarzeń dla kafelków nawigacyjnych w panelu bocznym.
     document.getElementById('calendarTile').addEventListener('click', () => {
       location.href = 'calendar.html';
     });
@@ -1001,6 +1032,7 @@ body.simple-page .page-shell {
       location.href = 'help.html';
     });
 
+    // Pobiera plik CSV z backendu i inicjuje jego zapis po stronie przeglądarki.
     async function exportCsv() {
       const res = await fetch('http://127.0.0.1:5000/api/export_csv', {
         credentials: 'include'
@@ -1015,6 +1047,7 @@ body.simple-page .page-shell {
       URL.revokeObjectURL(url);
     }
 
+    // Podpięcie obsługi przycisków i zdarzeń interfejsu.
     loginBtn.addEventListener('click', login);
     logoutBtn.addEventListener('click', logout);
     submitReservationBtn.addEventListener('click', submitReservation);
@@ -1035,6 +1068,7 @@ body.simple-page .page-shell {
       });
     }
 
+    // Funkcja startowa przywraca sesję po odświeżeniu strony i uruchamia cykliczne odświeżanie danych.
     async function bootstrap() {
       updateLoginState();
 
@@ -1070,6 +1104,7 @@ body.simple-page .page-shell {
       }
     }
 
+    // Uruchomienie aplikacji po załadowaniu skryptu.
     bootstrap();
   </script>
 </body>
