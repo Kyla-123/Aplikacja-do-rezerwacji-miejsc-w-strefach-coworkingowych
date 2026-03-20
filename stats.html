@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Statystyki Rezerwacji</title>
   <style>
-    /* Motyw spójny z resztą aplikacji */
+    /**/
     :root {
       --bg: #020617;
       --bg-soft: #0f172a;
@@ -101,6 +101,7 @@
   </style>
 </head>
 <body>
+  <!-- Podstrona prezentująca zbiorcze statystyki rezerwacji. -->
   <div class="page-shell">
     <h1>Statystyki rezerwacji</h1>
     <p class="sub"><a href="index.html">← Powrót do panelu głównego</a></p>
@@ -131,15 +132,18 @@
   </div>
 
   <script>
+    // Konfiguracja i stałe pomocnicze dla widoku statystyk.
     const API_BASE = 'http://127.0.0.1:5000';
     const DESKS_PER_FLOOR = 20;
 
+    // Zamienia identyfikator stanowiska na kod używany w prezentacji wyników.
     function deskCodeFromId(id) {
       const floor = (id <= DESKS_PER_FLOOR) ? 1 : 2;
       const local = ((id - 1) % DESKS_PER_FLOOR) + 1;
       return `P${floor}-${String(local).padStart(2, '0')}`;
     }
 
+    // Sprawdza aktywną sesję użytkownika przed udostępnieniem danych statystycznych.
     async function ensureAuth() {
       try {
         const res = await fetch(API_BASE + '/api/me', { credentials: 'include' });
@@ -149,6 +153,7 @@
       }
     }
 
+    // Dopasowuje rozdzielczość canvasa do urządzeń o wyższej gęstości pikseli.
     function setupHiDPICanvas(canvas) {
       const ratio = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -161,6 +166,7 @@
       return { ctx, width, height };
     }
 
+    // Rysuje prosty wykres słupkowy bez użycia zewnętrznych bibliotek.
     function drawBarChart(canvas, labels, values, opts = {}) {
       const { ctx, width, height } = setupHiDPICanvas(canvas);
 
@@ -226,6 +232,7 @@
       });
     }
 
+    // Uporządkowuje dane dzienne według stałej kolejności dni tygodnia.
     function normalizeByDay(byDay) {
       const order = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
       const labels = order;
@@ -233,6 +240,7 @@
       return { labels, values };
     }
 
+    // Uzupełnia brakujące godziny zerami, aby wykres godzinowy był czytelny i ciągły.
     function normalizeByHour(byHour) {
       const keys = Object.keys(byHour || {}).map(k => parseInt(k, 10)).filter(n => !Number.isNaN(n));
       const min = Math.min(8, ...(keys.length ? keys : [8]));
@@ -246,6 +254,7 @@
       return { labels, values };
     }
 
+    // Pobiera statystyki z backendu i aktualizuje zarówno wartości liczbowe, jak i wykresy.
     async function loadStats() {
       const res = await fetch(API_BASE + '/api/stats', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) return;
@@ -273,6 +282,7 @@
         hour.values.some(v => v > 0) ? '' : 'Brak danych do wyświetlenia (nie utworzono jeszcze rezerwacji).';
     }
 
+    // Inicjalizacja strony oraz ponowne przeliczanie wykresów po zmianie rozmiaru okna.
     (async () => {
       await ensureAuth();
       await loadStats();
