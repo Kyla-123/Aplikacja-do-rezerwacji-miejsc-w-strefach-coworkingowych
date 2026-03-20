@@ -135,7 +135,7 @@
 
     table.calendar tbody td {
       height: var(--row-h);
-      overflow: visible; /* ważne dla bloków rozciąganych w dół */
+      overflow: visible; /**/
       z-index: 1;
     }
 
@@ -184,10 +184,12 @@
   </style>
 </head>
 <body>
+  <!-- Widok tygodniowego kalendarza rezerwacji. -->
   <div class="page-shell">
     <h1>Widok kalendarza</h1>
     <p class="sub"><a href="index.html">← Powrót do panelu głównego</a></p>
 
+    <!-- Pasek sterujący zakresem tygodnia i stanem widoku. -->
     <div class="topbar">
       <label for="weekStart">Tydzień od:</label>
       <input type="date" id="weekStart" />
@@ -201,6 +203,7 @@
       <span class="pill"><span class="dot other"></span>rezerwacja innej osoby</span>
     </div>
 
+    <!-- Tabela kalendarza, w której wiersze odpowiadają godzinom, a kolumny dniom tygodnia. -->
     <div class="table-wrap">
       <table class="calendar">
         <thead>
@@ -219,19 +222,23 @@
   </div>
 
   <script>
+    // Konfiguracja i stałe wykorzystywane w widoku kalendarza.
     const API_BASE = 'http://127.0.0.1:5000';
     const START_HOUR = 8;
-    const END_HOUR = 18; // ostatni wiersz zaczyna się o 17
+    const END_HOUR = 18; // 
     const DESKS_PER_FLOOR = 20;
 
+    // Pomocnicze dopełnianie liczb zerem z lewej strony na potrzeby formatowania dat i godzin.
     function pad(n) { return n.toString().padStart(2, '0'); }
 
+    // Zamienia numeryczne ID stanowiska na kod prezentowany w interfejsie.
     function deskCodeFromId(id) {
       const floor = (id <= DESKS_PER_FLOOR) ? 1 : 2;
       const local = ((id - 1) % DESKS_PER_FLOOR) + 1;
       return `P${floor}-${String(local).padStart(2, '0')}`;
     }
 
+    // Sprawdza, czy użytkownik ma aktywną sesję; w przeciwnym razie wraca do strony głównej.
     async function ensureAuth() {
       try {
         const res = await fetch(API_BASE + '/api/me', { credentials: 'include' });
@@ -241,6 +248,7 @@
       }
     }
 
+    // Dynamicznie buduje pusty szkielet tabeli kalendarza dla dni roboczych i godzin pracy.
     function buildTable() {
       const body = document.getElementById('calendarBody');
       body.innerHTML = '';
@@ -260,6 +268,7 @@
       }
     }
 
+    // Wyznacza poniedziałek dla tygodnia, do którego należy przekazana data.
     function getMonday(date) {
       const d = new Date(date);
       const day = d.getDay(); // 0=nd,1=pn,...
@@ -269,16 +278,19 @@
       return d;
     }
 
+    // Zwraca datę w formacie ISO używanym przez pola typu date i nagłówki tabeli.
     function isoDate(d) {
       return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
     }
 
+    // Ustawia pole wyboru tygodnia na bieżący poniedziałek.
     function setWeekStartToCurrent() {
       const inp = document.getElementById('weekStart');
       const monday = getMonday(new Date());
       inp.value = isoDate(monday);
     }
 
+    // Przesuwa aktualnie wyświetlany tydzień o wskazaną liczbę dni i odświeża widok.
     function changeWeek(deltaDays) {
       const inp = document.getElementById('weekStart');
       let base = inp.value ? new Date(inp.value) : new Date();
@@ -288,12 +300,14 @@
       loadWeek();
     }
 
+    // Pobiera dane do kalendarza. Dla administratora zwracane są wszystkie rezerwacje,
+    // a dla zwykłego użytkownika wyłącznie jego własne wpisy.
     async function fetchReservations() {
       const statusEl = document.getElementById('status');
       statusEl.textContent = 'Ładowanie…';
       const username = sessionStorage.getItem('username') || null;
 
-      // najpierw spróbuj jako admin
+      //
       try {
         const res = await fetch(API_BASE + '/api/admin/reservations', {
           credentials: 'include',
@@ -342,16 +356,20 @@
       return [];
     }
 
+    // Czyści wcześniej narysowane sloty przed ponownym wyrenderowaniem tygodnia.
     function clearCells() {
       document.querySelectorAll('td[data-day]').forEach(td => td.innerHTML = '');
     }
 
+    // Odczytuje wysokość jednego wiersza kalendarza, aby poprawnie przeliczyć pozycję slotu.
     function getRowHeightPx() {
       const raw = getComputedStyle(document.documentElement).getPropertyValue('--row-h').trim();
       const n = parseFloat(raw.replace('px', ''));
       return Number.isFinite(n) ? n : 56;
     }
 
+    // Główna funkcja renderująca: ustawia nagłówki dni i wstawia bloki rezerwacji
+    // we właściwych komórkach tabeli wraz z ich wysokością zależną od czasu trwania.
     async function loadWeek() {
       const inp = document.getElementById('weekStart');
       if (!inp.value) setWeekStartToCurrent();
@@ -415,6 +433,7 @@
       });
     }
 
+    // Sekcja startowa inicjalizuje widok i uruchamia okresowe odświeżanie danych.
     (async () => {
       await ensureAuth();
       buildTable();
